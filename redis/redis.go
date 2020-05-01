@@ -10,6 +10,7 @@ import (
 type DB interface {
 	PushQueue(url []string) error
 	PopQueue() (string, error)
+	RangeQueue() ([]string, error)
 	SisMember(URLmd5 string) (bool, error)
 	SadD(crawledURL []string) error
 }
@@ -71,7 +72,7 @@ func (c *Conn) PopQueue() (string, error) {
 	defer c.Close()
 	result, err := c.Do("LPOP", "queue")
 	if err == redis.ErrNil {
-		return "", err
+		return "", redis.ErrNil
 	} else if err != nil {
 		return "", err
 	}
@@ -79,6 +80,20 @@ func (c *Conn) PopQueue() (string, error) {
 		return url, nil
 	}
 	return "", errors.New("类型断言失败")
+}
+
+func (c *Conn) RangeQueue() ([]string, error) {
+	defer c.Close()
+	result, err := c.Do("lrange", "queue", "0", "-1")
+	if err == redis.ErrNil {
+		return nil, redis.ErrNil
+	} else if err != nil {
+		return nil, err
+	}
+	if urls, ok := result.([]string); ok {
+		return urls, nil
+	}
+	return nil, errors.New("类型断言失败")
 }
 
 func (c *Conn) SisMember(URLmd5 string) (bool, error) {

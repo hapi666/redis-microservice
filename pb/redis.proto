@@ -5,28 +5,38 @@ import "google/protobuf/empty.proto";
 package proto;
 
 service DBService {
-    rpc PushQueue(PushQueueRequest) returns (google.protobuf.Empty){};
-    rpc PopQueue(google.protobuf.Empty) returns (PopQueueReply){};
-    rpc SisMember(SisMemberRequest) returns (SisMemberReply){};
-    rpc SadD(SadDRequest) returns (google.protobuf.Empty){};
+    rpc PushQueue (PushQueueRequest) returns (google.protobuf.Empty) {
+    };
+    rpc PopQueue (google.protobuf.Empty) returns (PopQueueReply) {
+    };
+    rpc RangeQueue (google.protobuf.Empty) returns (RangeQueueReply) {
+    };
+    rpc SisMember (SisMemberRequest) returns (SisMemberReply) {
+    };
+    rpc SadD (SadDRequest) returns (google.protobuf.Empty) {
+    };
 }
 
-message PushQueueRequest{
+message PushQueueRequest {
     repeated string urls = 1;
 }
 
-message PopQueueReply{
+message PopQueueReply {
     string url = 1;
 }
 
-message SisMemberRequest{
+message RangeQueueReply {
+    repeated string urls = 1;
+}
+
+message SisMemberRequest {
     string url = 1;
 }
 
-message SisMemberReply{
+message SisMemberReply {
     bool isExist = 1;
 }
 
-message SadDRequest{
+message SadDRequest {
     repeated string crawledURL = 1;
 }
