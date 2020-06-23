@@ -16,11 +16,7 @@ type DB interface {
 }
 
 type Pool struct {
-	redis.Pool
-}
-
-type Conn struct {
-	redis.Conn
+	*redis.Pool
 }
 
 func NewRedisPool(server, password string) (*Pool, error) {
@@ -48,43 +44,45 @@ func NewRedisPool(server, password string) (*Pool, error) {
 		MaxIdle:     3,
 		IdleTimeout: 240 * time.Second,
 	}
-	return &Pool{p}, nil
+	return &Pool{&p}, nil
 }
 
-func (p *Pool) GetRedisConn() (DB, error) {
+func (p *Pool) PushQueue(urls []string) error {
 	conn := p.Get()
 	if conn.Err() != nil {
-		return nil, conn.Err()
+		return conn.Err()
 	}
-	return &Conn{conn}, nil
-}
-
-func (c *Conn) PushQueue(urls []string) error {
-	defer c.Close()
-	_, err := c.Do("rpush", "queue", urls)
+	defer conn.Close()
+	_, err := conn.Do("rpush", "queue", urls)
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-func (c *Conn) PopQueue() (string, error) {
-	defer c.Close()
-	result, err := c.Do("LPOP", "queue")
+func (p *Pool) PopQueue() (string, error) {
+	conn := p.Get()
+	if conn.Err() != nil {
+		return "", conn.Err()
+	}
+	defer conn.Close()
+	result, err := redis.String(conn.Do("LPOP", "queue"))
 	if err == redis.ErrNil {
-		return "", redis.ErrNil
+		return "", errors.New("URL队列已空")
 	} else if err != nil {
 		return "", err
 	}
-	if url, ok := result.(string); ok {
-		return url, nil
-	}
-	return "", errors.New("类型断言失败")
+	return result, nil
+
 }
 
-func (c *Conn) RangeQueue() ([]string, error) {
-	defer c.Close()
-	result, err := c.Do("lrange", "queue", "0", "-1")
+func (p *Pool) RangeQueue() ([]string, error) {
+	conn := p.Get()
+	if conn.Err() != nil {
+		return nil, conn.Err()
+	}
+	defer conn.Close()
+	result, err := conn.Do("lrange", "queue", "0", "-1")
 	if err == redis.ErrNil {
 		return nil, redis.ErrNil
 	} else if err != nil {
@@ -96,25 +94,29 @@ func (c *Conn) RangeQueue() ([]string, error) {
 	return nil, errors.New("类型断言失败")
 }
 
-func (c *Conn) SisMember(URLmd5 string) (bool, error) {
-	defer c.Close()
-	isExist, err := c.Do("sismember", "urlmd5", URLmd5)
+func (p *Pool) SisMember(URLmd5 []byte) (bool, error) {
+	conn := p.Get()
+	if conn.Err() != nil {
+		return false, conn.Err()
+	}
+	defer conn.Close()
+	isExist, err := redis.Bool(conn.Do("sismember", "urlmd5", URLmd5))
 	if err != redis.ErrNil {
 		return false, err
 	}
-	if i, ok := isExist.(int); ok {
-		if i == 0 {
-			return false, nil
-		} else {
-			return true, err
-		}
+	if !isExist {
+		return false, nil
 	}
-	return false, errors.New("类型断言错误")
+	return true, err
 }
 
-func (c *Conn) SadD(crawledURL []string) error {
-	defer c.Close()
-	_, err := c.Do("sadd", "urlmd5", crawledURL)
+func (p *Pool) SadD(crawledURL []byte) error {
+	conn := p.Get()
+	if conn.Err() != nil {
+		return conn.Err()
+	}
+	defer conn.Close()
+	_, err := conn.Do("sadd", "urlmd5", crawledURL)
 	if err != redis.ErrNil {
 		return err
 	}
